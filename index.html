@@ -1,0 +1,126 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Re-Market</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Esconder barra de rolagem mas manter funcionalidade */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+
+        /* Animação suave para entrada de modais */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        /* Estilos para Impressão de PDF */
+        @media print {
+            @page {
+                size: landscape;
+                margin: 1cm;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            /* Esconder elementos de UI */
+            button, 
+            .no-print,
+            header,
+            footer,
+            input {
+                display: none !important;
+            }
+            /* Ajustar containers para ocupar toda a página */
+            .fixed, .absolute {
+                position: relative !important;
+                inset: auto !important;
+                overflow: visible !important;
+            }
+            .max-w-7xl, .max-w-6xl {
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .bg-[#fcfdfe], .bg-white {
+                background-color: transparent !important;
+            }
+            .shadow-sm, .shadow-lg, .shadow-2xl {
+                shadow: none !important;
+                box-shadow: none !important;
+            }
+            .border {
+                border-color: #eee !important;
+            }
+            /* Garantir que a tabela apareça inteira */
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            th, td {
+                border-bottom: 1px solid #eee !important;
+                padding: 10px !important;
+            }
+            /* Estilizar os cards de estatísticas para o PDF */
+            .grid {
+                display: flex !important;
+                gap: 20px !important;
+                margin-bottom: 30px !important;
+            }
+            .grid > div {
+                flex: 1;
+                border: 1px solid #eee !important;
+                padding: 15px !important;
+                border-radius: 10px !important;
+            }
+            /* Mostrar cabeçalho do relatório */
+            .print-header {
+                display: block !important;
+                margin-bottom: 30px;
+                text-align: center;
+            }
+            .print-header h1 {
+                font-size: 24px;
+                font-weight: 900;
+                margin: 0;
+            }
+            .print-header p {
+                font-size: 12px;
+                color: #666;
+            }
+        }
+        .print-header {
+            display: none;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+</head>
+<body class="bg-[#fcfdfe] text-gray-900">
+    <div id="root"></div>
+</body>
+</html>

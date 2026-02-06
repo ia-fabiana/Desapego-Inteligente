@@ -1,0 +1,7 @@
+{
+  "name": "Desapego Inteligente",
+  "description": "Uma plataforma moderna para venda de itens usados com auxílio de IA para descrição de produtos, controle de preços e status de venda.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

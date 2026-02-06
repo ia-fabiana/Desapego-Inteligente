@@ -25,7 +25,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onUpd
 
   const handleInterest = () => {
     const text = `Olá! Tenho interesse no item "${item.title}" que vi no catálogo.`;
-    window.open(`https://wa.me/5500000000000?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(`https://wa.me/5511934588562?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleAdditionalAction = () => {
+    if (!item.additionalLink) return;
+    
+    // Verifica se é um link (contém http ou .com)
+    if (item.additionalLink.includes('http') || item.additionalLink.includes('.com')) {
+      window.open(item.additionalLink.startsWith('http') ? item.additionalLink : `https://${item.additionalLink}`, '_blank');
+    } else {
+      alert(`Informação adicional: ${item.additionalLink}`);
+    }
   };
 
   const formatDate = (ts?: number) => {
@@ -47,7 +58,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onUpd
            </span>
         </div>
         
-        {/* SELO DE VENDIDO SÓ APARECE PARA O ADMIN SE ELE ESTIVER VENDO TUDO */}
         {item.isSold && isAdmin && (
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
             <span className="bg-red-600 text-white px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest mb-4">Vendido</span>
@@ -110,23 +120,33 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onUpd
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             {!item.isSold ? (
               <>
-                <button 
-                  onClick={handleInterest}
-                  className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2"
-                >
-                  Tenho Interesse
-                </button>
-                {isAdmin && (
-                  <button 
-                    onClick={() => onSell(1)}
-                    className="p-4 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all"
-                    title="Vender"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                  </button>
+                <div className="flex gap-2">
+                    <button 
+                    onClick={handleInterest}
+                    className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                    Tenho Interesse
+                    </button>
+                    {isAdmin && (
+                    <button 
+                        onClick={() => onSell(1)}
+                        className="p-4 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all"
+                        title="Vender"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    </button>
+                    )}
+                </div>
+                {item.additionalLink && (
+                    <button 
+                        onClick={handleAdditionalAction}
+                        className="w-full py-3 bg-white text-gray-500 rounded-xl font-bold text-[10px] uppercase tracking-widest border border-gray-100 hover:bg-gray-50 transition-all"
+                    >
+                        {item.additionalLink.includes('http') || item.additionalLink.includes('.com') ? 'Ver Detalhes' : 'Informação Extra'}
+                    </button>
                 )}
               </>
             ) : (

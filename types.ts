@@ -13,6 +13,7 @@ export interface Item {
   soldCount: number;
   color?: string;
   brand?: string;
+  additionalLink?: string; // Novo campo para texto extra ou link
   // Campos de Auditoria
   createdBy?: string;
   lastEditedBy?: string;

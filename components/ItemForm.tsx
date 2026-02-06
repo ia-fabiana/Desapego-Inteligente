@@ -4,7 +4,6 @@ import { analyzeItemImage } from '../services/geminiService';
 import { Item } from '../types';
 
 interface ItemFormProps {
-  // Fixed onAdd signature to omit soldCount to match App.tsx and prevent TS error
   onAdd?: (item: Omit<Item, 'id' | 'createdAt' | 'isSold' | 'soldCount'>) => void;
   onUpdate?: (item: Item) => void;
   onCancel: () => void;
@@ -21,6 +20,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
   const [location, setLocation] = useState('');
   const [brand, setBrand] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [additionalLink, setAdditionalLink] = useState('');
   const [isSold, setIsSold] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +35,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
       setLocation(itemToEdit.location || '');
       setBrand(itemToEdit.brand || '');
       setQuantity(itemToEdit.quantity?.toString() || '1');
+      setAdditionalLink(itemToEdit.additionalLink || '');
       setIsSold(itemToEdit.isSold);
     }
   }, [itemToEdit]);
@@ -47,7 +48,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
         const base64 = reader.result as string;
         setImage(base64);
         
-        // Só analisa automaticamente se for um novo item
         if (!itemToEdit) {
           setIsAnalyzing(true);
           try {
@@ -80,6 +80,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
       location,
       brand,
       quantity: parseInt(quantity) || 1,
+      additionalLink,
       isSold
     };
 
@@ -89,7 +90,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
         ...itemData
       });
     } else {
-      // Destructure isSold to remove it before calling onAdd, matching the expected signature in App.tsx
       const { isSold: _, ...dataForAdd } = itemData;
       onAdd?.(dataForAdd);
     }
@@ -234,6 +234,17 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, e
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Onde o item está?"
+                  className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Link ou Informações Adicionais</label>
+                <input
+                  type="text"
+                  value={additionalLink}
+                  onChange={(e) => setAdditionalLink(e.target.value)}
+                  placeholder="Cole um link ou escreva uma observação..."
                   className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
                 />
               </div>

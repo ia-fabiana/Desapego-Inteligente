@@ -46,7 +46,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   }, [items]);
 
-  const handlePrint = () => {
+  const handlePrintReport = () => {
+    document.body.classList.add('printing-report');
+    document.body.classList.remove('printing-catalog');
+    window.print();
+  };
+
+  const handlePrintCatalog = () => {
+    document.body.classList.add('printing-catalog');
+    document.body.classList.remove('printing-report');
     window.print();
   };
 
@@ -119,9 +127,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="fixed inset-0 bg-[#fcfdfe] z-50 overflow-y-auto animate-fade-in no-print-bg">
       <div className="max-w-7xl mx-auto px-6 py-12">
         
-        <div className="print-header">
-          <h1>RE-MARKET: Relatório de Inventário</h1>
-          <p>Gerado em: {new Date().toLocaleString('pt-BR')}</p>
+        {/* Cabeçalho exclusivo para Impressão */}
+        <div className="print-header print-only">
+          <h1>Desapego Inteligente - Salão de Beleza</h1>
+          <p className="text-xs uppercase font-bold text-gray-400 mt-2">Documento oficial gerado em: {new Date().toLocaleString('pt-BR')}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12 no-print">
@@ -129,17 +138,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button onClick={onClose} className="p-3 bg-white hover:bg-gray-50 rounded-xl border border-gray-100 shadow-sm transition-all">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </button>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Dashboard Admin</h1>
+            <div>
+                <h1 className="text-xl font-black text-gray-900 tracking-tight leading-none uppercase">Dashboard Admin</h1>
+                <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Gerenciamento de Inventário</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-             <button onClick={handlePrint} className="px-6 py-3 rounded-xl font-bold text-blue-600 hover:bg-blue-50 text-sm border border-blue-100 flex items-center gap-2">Imprimir PDF</button>
-             <button onClick={onAddNew} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg text-sm">Novo Item</button>
-             <button onClick={() => setShowImportModal(true)} className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black shadow-lg text-sm">Importar Dados</button>
-             <button onClick={onClearAll} className="px-6 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50 text-sm border border-red-100">Zerar</button>
+          <div className="flex items-center gap-2 flex-wrap justify-center admin-actions">
+             <button onClick={handlePrintCatalog} className="px-4 py-2.5 rounded-xl font-bold bg-gray-900 text-white hover:bg-black text-xs shadow-lg flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+               Catálogo PDF
+             </button>
+             <button onClick={handlePrintReport} className="px-4 py-2.5 rounded-xl font-bold text-blue-600 hover:bg-blue-50 text-xs border border-blue-100 flex items-center gap-2">
+               Relatório Vendas
+             </button>
+             <button onClick={onAddNew} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg text-xs">Novo Item</button>
+             <button onClick={() => setShowImportModal(true)} className="bg-gray-100 text-gray-900 px-4 py-2.5 rounded-xl font-bold hover:bg-gray-200 text-xs">Importar</button>
+             <button onClick={onClearAll} className="px-4 py-2.5 rounded-xl font-bold text-red-600 hover:bg-red-50 text-xs border border-red-100">Zerar</button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        {/* Estatísticas no Dashboard */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 no-print">
           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Receita Estimada (Vendidos)</p>
             <h3 className="text-3xl font-black text-green-600">R$ {stats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
@@ -154,7 +173,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden mb-10">
+        {/* SEÇÃO 1: TABELA DE RELATÓRIO (ADMIN) */}
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden mb-10 report-table-section">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -215,6 +235,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* SEÇÃO 2: VITRINE DE CATÁLOGO (PARA CLIENTES - SÓ APARECE NA IMPRESSÃO) */}
+        <div className="catalog-print-section print-only">
+          <div className="mb-8 text-center">
+            <h2 className="text-xl font-black uppercase text-gray-900">Catálogo de Produtos</h2>
+            <p className="text-sm text-gray-500 font-medium">Confira nossas ofertas disponíveis hoje</p>
+          </div>
+          <div className="print-catalog-grid">
+            {items.filter(i => !i.isSold).map((item) => (
+              <div key={item.id} className="print-catalog-item">
+                <img src={item.imageUrl} alt={item.title} />
+                <h3 className="font-black text-sm text-gray-900 leading-tight mb-1">{item.title}</h3>
+                <p className="text-[10px] text-gray-500 line-clamp-2 mb-2">{item.description}</p>
+                <div className="text-lg font-black text-green-600">
+                  R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                {item.additionalLink && (
+                  <p className="text-[8px] text-blue-500 mt-1 italic">{item.additionalLink}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 pt-8 border-t border-gray-100 text-center">
+             <p className="text-[10px] font-black text-gray-400 uppercase">Fale conosco pelo WhatsApp: (11) 93458-8562</p>
           </div>
         </div>
       </div>

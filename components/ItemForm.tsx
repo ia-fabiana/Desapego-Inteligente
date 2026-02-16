@@ -2,281 +2,282 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { analyzeItemImage } from '../services/geminiService';
 import { Item } from '../types';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 interface ItemFormProps {
-  onAdd?: (item: Omit<Item, 'id' | 'createdAt' | 'isSold' | 'soldCount'>) => void;
-  onUpdate?: (item: Item) => void;
+  onAdd?: (data: any) => void;
+  onUpdate?: (data: any) => void;
   onCancel: () => void;
-  existingCategories?: string[];
   itemToEdit?: Item | null;
 }
 
-export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, existingCategories = [], itemToEdit }) => {
-  const [image, setImage] = useState<string | null>(null);
+export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, itemToEdit }) => {
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [existingUrls, setExistingUrls] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('');
-  const [location, setLocation] = useState('');
-  const [brand, setBrand] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [additionalLink, setAdditionalLink] = useState('');
-  const [isSold, setIsSold] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [totalProgress, setTotalProgress] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const storage = getStorage();
 
   useEffect(() => {
     if (itemToEdit) {
-      setImage(itemToEdit.imageUrl);
+      setExistingUrls(itemToEdit.imageUrls || []);
       setTitle(itemToEdit.title);
       setDescription(itemToEdit.description);
       setPrice(itemToEdit.price.toString());
       setCategory(itemToEdit.category);
-      setLocation(itemToEdit.location || '');
-      setBrand(itemToEdit.brand || '');
-      setQuantity(itemToEdit.quantity?.toString() || '1');
-      setAdditionalLink(itemToEdit.additionalLink || '');
-      setIsSold(itemToEdit.isSold);
     }
   }, [itemToEdit]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        setImage(base64);
-        
-        if (!itemToEdit) {
-          setIsAnalyzing(true);
-          try {
-            const analysis = await analyzeItemImage(base64);
-            setTitle(analysis.title);
-            setDescription(analysis.description);
-            setPrice(analysis.suggestedPrice.toString());
-            setCategory(analysis.category);
-          } catch (err) {
-            console.error("Erro na análise IA", err);
-          } finally {
-            setIsAnalyzing(false);
-          }
+  // Função para comprimir a imagem no cliente antes de subir
+  const compressImage = (file: File): Promise<{blob: Blob, base64: string}> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+        } else {
+          if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
         }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(img.src);
+          resolve({ blob: blob!, base64 });
+        }, 'image/jpeg', 0.8);
       };
-      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // FIX: Explicitly cast Array.from to File[] to avoid 'unknown' type inference issues
+    const selectedFiles = e.target.files ? (Array.from(e.target.files) as File[]) : [];
+    if (selectedFiles.length === 0) return;
+
+    // Limite total de 3 fotos (existentes + novas)
+    const availableSlots = 3 - existingUrls.length - files.length;
+    const filesToAdd = selectedFiles.slice(0, availableSlots);
+    
+    if (filesToAdd.length === 0 && selectedFiles.length > 0) {
+        alert("Máximo de 3 fotos atingido.");
+        return;
+    }
+
+    const updatedFiles = [...files, ...filesToAdd];
+    setFiles(updatedFiles);
+    
+    const newPreviews = updatedFiles.map(f => URL.createObjectURL(f));
+    setPreviews(newPreviews);
+
+    // IA: Analisa a primeira foto nova se os campos estiverem vazios
+    if (!itemToEdit && title === '' && filesToAdd.length > 0) {
+      setIsAnalyzing(true);
+      try {
+        // FIX: Extract file reference and ensure it exists before passing to compressImage to avoid TS errors
+        const firstFile = filesToAdd[0];
+        if (firstFile) {
+          const { base64 } = await compressImage(firstFile);
+          const result = await analyzeItemImage(base64);
+          setTitle(result.title);
+          setDescription(result.description);
+          setPrice(result.suggestedPrice.toString());
+          setCategory(result.category);
+        }
+      } catch (err) {
+        console.error("Erro na análise IA:", err);
+      } finally {
+        setIsAnalyzing(false);
+      }
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!image || !title || !price) return;
-    
-    const itemData = {
-      title,
-      description,
-      price: parseFloat(price),
-      imageUrl: image,
-      category: category || 'Geral',
-      location,
-      brand,
-      quantity: parseInt(quantity) || 1,
-      additionalLink,
-      isSold
-    };
+  const uploadToStorage = (file: File, index: number, total: number): Promise<string> => {
+    return new Promise(async (resolve, reject) => {
+      const { blob } = await compressImage(file);
+      const storageRef = ref(storage, `items/${Date.now()}_${index}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, blob);
 
-    if (itemToEdit) {
-      onUpdate?.({
-        ...itemToEdit,
-        ...itemData
-      });
-    } else {
-      const { isSold: _, ...dataForAdd } = itemData;
-      onAdd?.(dataForAdd);
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          // Cálculo simplificado de progresso global
+          setTotalProgress((prev) => (progress / total) + (index * (100 / total)));
+        }, 
+        (error) => reject(error), 
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            resolve(downloadURL);
+          });
+        }
+      );
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (files.length === 0 && existingUrls.length === 0) {
+        alert("Adicione pelo menos uma foto.");
+        return;
     }
+
+    setIsSaving(true);
+    setTotalProgress(0);
+
+    try {
+      // Sobe as fotos novas para o Storage
+      const newUrls = await Promise.all(files.map((file, i) => uploadToStorage(file, i, files.length)));
+      const finalUrls = [...existingUrls, ...newUrls];
+
+      const payload = {
+        title,
+        description,
+        price: parseFloat(price) || 0,
+        category,
+        imageUrls: finalUrls,
+        quantity: 1
+      };
+
+      if (itemToEdit) {
+        await onUpdate?.({ ...itemToEdit, ...payload });
+      } else {
+        await onAdd?.(payload);
+      }
+      onCancel();
+    } catch (err) {
+      console.error("Erro no processo de salvamento:", err);
+      alert("Houve um erro ao subir as fotos. Verifique o Storage.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeNewFile = (idx: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+    setPreviews(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const removeExistingUrl = (idx: number) => {
+    setExistingUrls(prev => prev.filter((_, i) => i !== idx));
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-6 z-50 animate-in fade-in duration-300">
-      <div className="bg-white rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in slide-in-from-bottom-10 duration-500">
-        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh] shadow-2xl animate-fade-in">
+        <div className="p-8 border-b flex justify-between items-center bg-gray-50/50">
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-              {itemToEdit ? 'Editar Item' : 'Novo Registro'}
+            <h2 className="font-black uppercase text-sm tracking-tighter text-gray-900">
+              {itemToEdit ? 'Editar Produto' : 'Novo Anúncio'}
             </h2>
-            <p className="text-gray-500 font-medium text-xs mt-1">Altere os dados abaixo e salve para atualizar o inventário</p>
+            <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">
+              {isAnalyzing ? 'IA Analisando sua foto...' : 'Venda Rápida'}
+            </p>
           </div>
-          <button onClick={onCancel} className="p-3 hover:bg-white rounded-full transition-all text-gray-400 hover:text-gray-900 shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <button onClick={onCancel} className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm hover:bg-gray-100 transition-all text-gray-400">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-8 space-y-6 scrollbar-hide">
-          <div className="flex flex-col md:flex-row gap-8">
-            <div className="w-full md:w-[280px] shrink-0">
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className={`aspect-square rounded-[2rem] border-4 border-dashed flex items-center justify-center cursor-pointer transition-all overflow-hidden relative group ${image ? 'border-transparent shadow-xl' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'}`}
-              >
-                {image ? (
-                  <>
-                    <img src={image} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                      <span className="text-white text-xs font-black uppercase tracking-widest">Trocar Foto</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center p-8">
-                    <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl mb-4 mx-auto w-fit">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">Subir Foto Principal</p>
-                  </div>
-                )}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  className="hidden" 
-                  accept="image/*"
-                />
-              </div>
-
-              <div className="mt-6 flex flex-col gap-3 p-5 bg-gray-50 rounded-2xl border border-gray-100">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status de Venda</label>
-                <button 
-                  type="button"
-                  onClick={() => setIsSold(!isSold)}
-                  className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${isSold ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}
-                >
-                  {isSold ? 'Vendido' : 'Disponível'}
-                </button>
-              </div>
-
-              {isAnalyzing && (
-                <div className="mt-6 flex flex-col items-center gap-2 p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
-                  <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">IA Analisando...</span>
+        <form onSubmit={handleSubmit} className="p-8 overflow-y-auto space-y-6 scrollbar-hide">
+          {/* Upload de Fotos */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Fotos (Máx 3)</label>
+              {isAnalyzing && <div className="w-2 h-2 bg-blue-600 rounded-full animate-ping" />}
+            </div>
+            
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {/* Fotos já existentes (na edição) */}
+              {existingUrls.map((url, idx) => (
+                <div key={`exist-${idx}`} className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-gray-100">
+                  <img src={url} className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeExistingUrl(idx)} className="absolute top-1 right-1 bg-red-600 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
+              ))}
+              
+              {/* Previews de novas fotos */}
+              {previews.map((url, idx) => (
+                <div key={`new-${idx}`} className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-blue-200">
+                  <img src={url} className="w-full h-full object-cover" />
+                  <div className="absolute top-1 left-1 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">Novo</div>
+                  <button type="button" onClick={() => removeNewFile(idx)} className="absolute top-1 right-1 bg-gray-900 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ))}
+
+              {/* Botão de Adicionar */}
+              {(existingUrls.length + files.length) < 3 && (
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="w-28 h-28 shrink-0 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all">
+                  <span className="text-2xl font-light">+</span>
+                  <span className="text-[9px] font-black uppercase tracking-tighter">Adicionar</span>
+                </button>
               )}
             </div>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
+          </div>
 
-            <div className="flex-1 space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Título do Anúncio</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Nome do produto..."
-                  className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+          {/* Dados do Item */}
+          <div className="grid grid-cols-1 gap-5">
+            <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase text-gray-400">Título</label>
+                <input type="text" placeholder="Nome do produto..." value={title} onChange={e => setTitle(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Preço (R$)</label>
-                  <input
-                    type="number"
-                    required
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-black text-green-600 bg-gray-50/50"
-                  />
+                    <label className="text-[9px] font-black uppercase text-gray-400">Preço (R$)</label>
+                    <input type="number" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-green-600 text-sm focus:bg-white focus:border-green-400 transition-all" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Categoria</label>
-                  <input
-                    type="text"
-                    list="category-suggestions"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                  />
-                  <datalist id="category-suggestions">
-                    {existingCategories.map(cat => <option key={cat} value={cat} />)}
-                  </datalist>
+                    <label className="text-[9px] font-black uppercase text-gray-400">Categoria</label>
+                    <input type="text" placeholder="Ex: Móveis" value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
                 </div>
-              </div>
+            </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2 col-span-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Qtd</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                  />
-                </div>
-                <div className="space-y-2 col-span-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Marca / Modelo</label>
-                  <input
-                    type="text"
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="Marca do item..."
-                    className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Localização</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Onde o item está?"
-                  className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Link ou Informações Adicionais</label>
-                <input
-                  type="text"
-                  value={additionalLink}
-                  onChange={(e) => setAdditionalLink(e.target.value)}
-                  placeholder="Cole um link ou escreva uma observação..."
-                  className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-bold text-gray-800 bg-gray-50/50"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Descrição</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full px-6 py-4 rounded-2xl border border-gray-100 focus:border-blue-400 outline-none transition-all font-medium text-gray-600 bg-gray-50/50 resize-none"
-                />
-              </div>
+            <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase text-gray-400">Descrição</label>
+                <textarea placeholder="Detalhes do item..." value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-medium text-xs resize-none focus:bg-white focus:border-blue-400 transition-all" />
             </div>
           </div>
 
-          <div className="flex gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 px-8 py-4 rounded-xl border border-gray-200 text-gray-500 font-bold hover:bg-gray-50 transition-all text-sm"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={!image || !title || !price}
-              className="flex-[2] bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-50 disabled:opacity-50 text-sm uppercase tracking-widest"
-            >
-              {itemToEdit ? 'Salvar Alterações' : 'Publicar Item'}
-            </button>
-          </div>
+          {/* Barra de Progresso Real */}
+          {isSaving && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-[10px] font-black uppercase text-blue-600">
+                <span>Enviando arquivos...</span>
+                <span>{Math.round(totalProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                <div 
+                  className="bg-blue-600 h-full transition-all duration-300" 
+                  style={{ width: `${totalProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={isSaving} 
+            className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? 'Subindo Fotos...' : itemToEdit ? 'Salvar Alterações' : 'Publicar Anúncio'}
+          </button>
         </form>
       </div>
     </div>

@@ -4,7 +4,7 @@ export interface Item {
   title: string;
   description: string;
   price: number;
-  imageUrl: string;
+  imageUrls: string[]; // Agora é um array para o carrossel
   isSold: boolean;
   createdAt: number;
   category: string;
@@ -13,18 +13,17 @@ export interface Item {
   soldCount: number;
   color?: string;
   brand?: string;
-  additionalLink?: string; // Novo campo para texto extra ou link
-  // Campos de Auditoria
+  additionalLink?: string;
+  // Auditoria e Vendas
   createdBy?: string;
   lastEditedBy?: string;
-  // Campos de Venda
   buyerName?: string;
   soldAt?: number;
   soldBy?: string;
 }
 
 export interface UserSession {
-  username: string; // displayName do Google
+  username: string;
   email: string;
   photoURL?: string;
 }

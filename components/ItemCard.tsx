@@ -128,7 +128,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
              <span className="text-xs font-bold mr-1">R$</span>
              {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
            </div>
-           {/* {!item.isSold && <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Pronta Entrega</span>} */}
+           {item.quantity > 1 && (
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+               {item.quantity} disponíveis
+             </span>
+           )}
         </div>
 
         {!item.isSold ? (

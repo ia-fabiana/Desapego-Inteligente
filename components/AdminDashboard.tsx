@@ -21,11 +21,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     let soldCountTotal = 0;
 
     items.forEach(item => {
+      const q = item.quantity || 1;
       if (item.isSold) {
         revenue += item.price;
         soldCountTotal++;
       } else {
-        availableCount++;
+        availableCount += q;
       }
     });
 
@@ -33,7 +34,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       revenue,
       availableCount,
       soldCountTotal,
-      totalItems: items.length
+      totalItems: items.reduce((acc, item) => acc + (item.quantity || 1), 0)
     };
   }, [items]);
 
@@ -95,6 +96,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <tr className="text-[9px] font-black uppercase text-gray-400 tracking-widest">
                             <th className="px-8 py-4">Produto</th>
                             <th className="px-8 py-4 text-center">Preço</th>
+                            <th className="px-8 py-4 text-center">Qtd</th>
                             <th className="px-8 py-4 text-center">Status</th>
                             <th className="px-8 py-4 text-right">Ações</th>
                         </tr>
@@ -127,6 +129,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <div className="inline-flex flex-col items-center">
                                             <span className="font-black text-green-600 text-sm">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
+                                    </td>
+                                    <td className="px-8 py-5 text-center">
+                                        <span className="font-bold text-gray-900 text-sm">{item.quantity || 1}</span>
                                     </td>
                                     <td className="px-8 py-5 text-center">
                                         <button 

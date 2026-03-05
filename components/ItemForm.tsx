@@ -18,6 +18,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [category, setCategory] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,6 +32,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
       setTitle(itemToEdit.title);
       setDescription(itemToEdit.description);
       setPrice(itemToEdit.price.toString());
+      setQuantity(itemToEdit.quantity?.toString() || '1');
       setCategory(itemToEdit.category);
     }
   }, [itemToEdit]);
@@ -149,7 +151,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
         price: parseFloat(price) || 0,
         category,
         imageUrls: finalUrls,
-        quantity: 1
+        quantity: parseInt(quantity) || 1
       };
 
       if (itemToEdit) {
@@ -244,9 +246,14 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
                     <input type="number" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-black text-green-600 text-sm focus:bg-white focus:border-green-400 transition-all" />
                 </div>
                 <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-gray-400">Categoria</label>
-                    <input type="text" placeholder="Ex: Móveis" value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
+                    <label className="text-[9px] font-black uppercase text-gray-400">Quantidade</label>
+                    <input type="number" min="1" placeholder="1" value={quantity} onChange={e => setQuantity(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
                 </div>
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase text-gray-400">Categoria</label>
+                <input type="text" placeholder="Ex: Móveis" value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
             </div>
 
             <div className="space-y-2">

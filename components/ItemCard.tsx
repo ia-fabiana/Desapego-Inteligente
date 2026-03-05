@@ -13,6 +13,7 @@ interface ItemCardProps {
 
 export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDelete, onEdit }) => {
   const [currentImg, setCurrentImg] = useState(0);
+  const [showZoom, setShowZoom] = useState(false);
   const urls = item.imageUrls && item.imageUrls.length > 0 
     ? item.imageUrls 
     : ['https://via.placeholder.com/600x600?text=Sem+Foto'];
@@ -36,7 +37,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
   return (
     <div className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden flex flex-col shadow-sm hover:shadow-2xl transition-all group animate-fade-in">
       {/* Container da Imagem / Carrossel */}
-      <div className="relative aspect-[4/5] bg-gray-50 overflow-hidden">
+      <div 
+        className="relative aspect-[4/5] bg-gray-50 overflow-hidden cursor-zoom-in"
+        onClick={() => setShowZoom(true)}
+      >
         {/* Camada de Imagem com Transição Suave */}
         <div className="w-full h-full relative">
             {urls.map((url, idx) => (
@@ -151,6 +155,56 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
           </div>
         )}
       </div>
+
+      {/* Modal de Zoom */}
+      {showZoom && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-10 animate-fade-in"
+          onClick={() => setShowZoom(false)}
+        >
+          <button 
+            className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-[110]"
+            onClick={(e) => { e.stopPropagation(); setShowZoom(false); }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div 
+            className="relative max-w-5xl w-full max-h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={urls[currentImg]} 
+              className="max-w-full max-h-[85vh] object-contain rounded-3xl shadow-2xl"
+              alt={item.title}
+            />
+            
+            {urls.length > 1 && (
+              <>
+                <button 
+                  onClick={handlePrev} 
+                  className="absolute -left-4 md:-left-20 top-1/2 -translate-y-1/2 bg-white text-black p-5 rounded-full shadow-2xl active:scale-90 transition-all"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button 
+                  onClick={handleNext} 
+                  className="absolute -right-4 md:-right-20 top-1/2 -translate-y-1/2 bg-white text-black p-5 rounded-full shadow-2xl active:scale-90 transition-all"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </>
+            )}
+
+            <div className="absolute -bottom-12 left-0 right-0 text-center">
+              <p className="text-white font-black text-sm uppercase tracking-widest">{item.title}</p>
+              <p className="text-white/40 text-[10px] font-bold mt-1 uppercase tracking-widest">Foto {currentImg + 1} de {urls.length}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

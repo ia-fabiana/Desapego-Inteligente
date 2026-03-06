@@ -9,7 +9,10 @@ interface AdminDashboardProps {
   onAddNew: () => void;
   onToggleStatus: (id: string, isSold: boolean) => void;
     onToggleVisibility: (id: string, isEnabled: boolean) => void;
+    onToggleAllVisibility?: (enabled: boolean) => void;
     onCreateQuote: (data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; }) => void;
+    onUpdateQuote: (quote: Quote, data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; status: 'orcamento' | 'aprovado'; }) => void;
+    onDeleteQuote: (quoteId: string) => void;
     onUpdateQuoteStatus: (quote: Quote, status: 'orcamento' | 'aprovado') => void;
   onEditItem?: (item: Item) => void;
   onDelete?: (id: string) => void;
@@ -17,14 +20,21 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-    items, quotes, onClose, onAddNew, onToggleStatus, onToggleVisibility, onCreateQuote, onUpdateQuoteStatus, onEditItem, onDelete, onUpdatePrice 
+    items, quotes, onClose, onAddNew, onToggleStatus, onToggleVisibility, onToggleAllVisibility, onCreateQuote, onUpdateQuote, onDeleteQuote, onUpdateQuoteStatus, onEditItem, onDelete, onUpdatePrice 
 }) => {
     const [activeTab, setActiveTab] = useState<'items' | 'quotes'>('items');
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [quoteLines, setQuoteLines] = useState<Array<{ itemId: string; quantity: number }>>([{ itemId: '', quantity: 1 }]);
+    const [quoteItemSearch, setQuoteItemSearch] = useState('');
     const [quoteSearch, setQuoteSearch] = useState('');
     const [quoteStatus, setQuoteStatus] = useState<'todos' | 'orcamento' | 'aprovado'>('todos');
+    const [itemVisibilityFilter, setItemVisibilityFilter] = useState<'todos' | 'habilitado' | 'desabilitado'>('todos');
+        const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+        const [editClientName, setEditClientName] = useState('');
+        const [editClientPhone, setEditClientPhone] = useState('');
+        const [editStatus, setEditStatus] = useState<'orcamento' | 'aprovado'>('orcamento');
+        const [editLines, setEditLines] = useState<Array<{ itemId: string; quantity: number }>>([]);
 
   const stats = useMemo(() => {
     let revenue = 0;
@@ -48,6 +58,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       totalItems: items.reduce((acc, item) => acc + (item.quantity || 1), 0)
     };
   }, [items]);
+
+    const filteredAdminItems = useMemo(() => {
+        if (itemVisibilityFilter === 'todos') return items;
+        const target = itemVisibilityFilter === 'habilitado';
+        return items.filter((item) => (item.isEnabled === true) === target);
+    }, [items, itemVisibilityFilter]);
 
     const quoteItems = useMemo(() => {
         return quoteLines
@@ -75,6 +91,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return quoteItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     }, [quoteItems]);
 
+    const editItems = useMemo(() => {
+        return editLines
+            .map((line) => {
+                const item = items.find((i) => i.id === line.itemId);
+                if (!item) return null;
+                return {
+                    itemId: item.id,
+                    title: item.title,
+                    price: item.price,
+                    quantity: Math.max(1, Number(line.quantity) || 1)
+                } as QuoteItem;
+            })
+            .filter((line): line is QuoteItem => !!line);
+    }, [editLines, items]);
+
+    const editTotal = useMemo(() => {
+        return editItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    }, [editItems]);
+
     const filteredQuotes = useMemo(() => {
         return quotes.filter((quote) => {
             const matchesStatus = quoteStatus === 'todos' ? true : quote.status === quoteStatus;
@@ -86,6 +121,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         });
     }, [quotes, quoteStatus, quoteSearch]);
 
+    const filteredItems = useMemo(() => {
+        const search = quoteItemSearch.trim().toLowerCase();
+        if (!search) return items;
+        return items.filter((item) => item.title.toLowerCase().includes(search));
+    }, [items, quoteItemSearch]);
+
     const updateQuoteLine = (index: number, next: Partial<{ itemId: string; quantity: number }>) => {
         setQuoteLines((prev) => prev.map((line, idx) => idx === index ? { ...line, ...next } : line));
     };
@@ -96,6 +137,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const removeQuoteLine = (index: number) => {
         setQuoteLines((prev) => prev.filter((_, idx) => idx !== index));
+    };
+
+    const updateEditLine = (index: number, next: Partial<{ itemId: string; quantity: number }>) => {
+        setEditLines((prev) => prev.map((line, idx) => idx === index ? { ...line, ...next } : line));
+    };
+
+    const addEditLine = () => {
+        setEditLines((prev) => [...prev, { itemId: '', quantity: 1 }]);
+    };
+
+    const removeEditLine = (index: number) => {
+        setEditLines((prev) => prev.filter((_, idx) => idx !== index));
+    };
+
+    const startEditQuote = (quote: Quote) => {
+        setEditingQuoteId(quote.id);
+        setEditClientName(quote.clientName);
+        setEditClientPhone(quote.clientPhone);
+        setEditStatus(quote.status);
+        setEditLines(quote.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity })));
+    };
+
+    const cancelEditQuote = () => {
+        setEditingQuoteId(null);
+        setEditClientName('');
+        setEditClientPhone('');
+        setEditStatus('orcamento');
+        setEditLines([]);
+    };
+
+    const handleSaveEditQuote = (quote: Quote) => {
+        if (!editClientName.trim() || !editClientPhone.trim()) {
+            alert('Informe nome e telefone do cliente.');
+            return;
+        }
+        if (editItems.length === 0) {
+            alert('Adicione pelo menos um item no orcamento.');
+            return;
+        }
+        onUpdateQuote(quote, {
+            clientName: editClientName.trim(),
+            clientPhone: editClientPhone.trim(),
+            items: editItems,
+            total: editTotal,
+            status: editStatus
+        });
+        cancelEditQuote();
     };
 
     const handleCreateQuote = () => {
@@ -133,6 +221,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => window.open('/', '_blank')}
+                            className="bg-white text-gray-600 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-gray-100 hover:border-gray-300 transition-all"
+                        >
+                            Visualizar Loja
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="bg-white text-gray-600 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-gray-100 hover:border-gray-300 transition-all"
+                        >
+                            Imprimir Loja
+                        </button>
             <button onClick={onAddNew} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95">
               Cadastrar Item
             </button>
@@ -187,9 +287,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="bg-white border rounded-[2.5rem] shadow-sm overflow-hidden mb-12">
             <div className="px-8 py-6 border-b bg-gray-50/30 flex justify-between items-center">
                 <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Lista de Produtos</h4>
-                <div className="flex gap-2">
-                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                   <span className="text-[9px] font-black text-gray-400 uppercase">Ativo</span>
+                <div className="flex items-center gap-3">
+                       {onToggleAllVisibility && (
+                           <div className="flex items-center gap-2">
+                               <button
+                                   type="button"
+                                   onClick={() => onToggleAllVisibility(true)}
+                                   className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-100 text-green-600 hover:bg-green-50 transition-all"
+                                   title="Habilitar todos"
+                               >
+                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                               </button>
+                               <button
+                                   type="button"
+                                   onClick={() => onToggleAllVisibility(false)}
+                                   className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-100 text-red-600 hover:bg-red-50 transition-all"
+                                   title="Desabilitar todos"
+                               >
+                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                               </button>
+                           </div>
+                       )}
+                   <select
+                       value={itemVisibilityFilter}
+                       onChange={(e) => setItemVisibilityFilter(e.target.value as 'todos' | 'habilitado' | 'desabilitado')}
+                       className="px-3 py-2 rounded-xl border border-gray-100 text-[9px] font-black uppercase tracking-widest text-gray-500 bg-white"
+                   >
+                       <option value="todos">Todos</option>
+                       <option value="habilitado">Habilitado</option>
+                       <option value="desabilitado">Desabilitado</option>
+                   </select>
                 </div>
             </div>
 
@@ -206,14 +333,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {items.length === 0 ? (
+                        {filteredAdminItems.length === 0 ? (
                             <tr>
                                 <td colSpan={4} className="px-8 py-20 text-center">
                                     <p className="text-gray-300 font-bold italic">Nenhum item cadastrado no sistema.</p>
                                 </td>
                             </tr>
                         ) : (
-                            items.map((item) => (
+                            filteredAdminItems.map((item) => (
                                 <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-8 py-5">
                                         <div className="flex items-center gap-4">
@@ -351,6 +478,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
 
                         <div className="space-y-3">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Buscar Item</label>
+                                <input
+                                    type="text"
+                                    value={quoteItemSearch}
+                                    onChange={(e) => setQuoteItemSearch(e.target.value)}
+                                    placeholder="Nome do item"
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
                             {quoteLines.map((line, index) => (
                                 <div key={`quote-line-${index}`} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-4 items-center">
                                     <select
@@ -359,7 +496,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
                                     >
                                         <option value="">Selecione um item</option>
-                                        {items.map((item) => (
+                                        {filteredItems.map((item) => (
                                             <option key={item.id} value={item.id}>
                                                 {item.title} (disp: {item.quantity ?? 1})
                                             </option>
@@ -442,17 +579,133 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             ))}
                                         </div>
 
-                                        {quote.status === 'orcamento' && (
-                                            <div className="flex justify-end">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onUpdateQuoteStatus(quote, 'aprovado')}
-                                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all"
-                                                >
-                                                    Aprovar Compra
-                                                </button>
-                                            </div>
-                                        )}
+                                                {editingQuoteId === quote.id ? (
+                                                    <div className="space-y-4 border-t border-gray-100 pt-4">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                            <input
+                                                                type="text"
+                                                                value={editClientName}
+                                                                onChange={(e) => setEditClientName(e.target.value)}
+                                                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={editClientPhone}
+                                                                onChange={(e) => setEditClientPhone(e.target.value)}
+                                                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm"
+                                                            />
+                                                            <select
+                                                                value={editStatus}
+                                                                onChange={(e) => setEditStatus(e.target.value as 'orcamento' | 'aprovado')}
+                                                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm"
+                                                            >
+                                                                <option value="orcamento">Orcamento</option>
+                                                                <option value="aprovado">Aprovado</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="space-y-3">
+                                                            {editLines.map((line, index) => (
+                                                                <div key={`edit-line-${quote.id}-${index}`} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-4 items-center">
+                                                                    <select
+                                                                        value={line.itemId}
+                                                                        onChange={(e) => updateEditLine(index, { itemId: e.target.value })}
+                                                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm"
+                                                                    >
+                                                                        <option value="">Selecione um item</option>
+                                                                        {filteredItems.map((item) => (
+                                                                            <option key={item.id} value={item.id}>
+                                                                                {item.title} (disp: {item.quantity ?? 1})
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        step={1}
+                                                                        value={line.quantity}
+                                                                        onChange={(e) => updateEditLine(index, { quantity: parseInt(e.target.value, 10) || 1 })}
+                                                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-sm"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeEditLine(index)}
+                                                                        className="w-10 h-10 bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-100 transition-all"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                            <button
+                                                                type="button"
+                                                                onClick={addEditLine}
+                                                                className="px-4 py-2 bg-gray-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest"
+                                                            >
+                                                                Adicionar Item
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center justify-between gap-4">
+                                                            <span className="text-sm font-black text-green-600">
+                                                                Total: R$ {editTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleSaveEditQuote(quote)}
+                                                                    className="px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    Salvar
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={cancelEditQuote}
+                                                                    className="px-4 py-2 bg-gray-100 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    Cancelar
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm('Deseja excluir este orcamento?')) {
+                                                                            onDeleteQuote(quote.id);
+                                                                            cancelEditQuote();
+                                                                        }
+                                                                    }}
+                                                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    Excluir
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-end gap-2">
+                                                        {quote.status === 'orcamento' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onUpdateQuoteStatus(quote, 'aprovado')}
+                                                                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                                            >
+                                                                Aprovar Compra
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => startEditQuote(quote)}
+                                                            className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => confirm('Deseja excluir este orcamento?') && onDeleteQuote(quote.id)}
+                                                            className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-100 transition-all"
+                                                        >
+                                                            Excluir
+                                                        </button>
+                                                    </div>
+                                                )}
                                     </div>
                                 ))
                             )}

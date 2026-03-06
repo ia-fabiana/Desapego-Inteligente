@@ -7,7 +7,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 
 // FIREBASE SDK (ESM)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -152,6 +152,72 @@ const App: React.FC = () => {
     await updateDoc(doc(db, "quotes", quote.id), updatePayload);
   };
 
+  const handleUpdateQuote = async (quote: Quote, data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; status: 'orcamento' | 'aprovado'; }) => {
+    if (!currentUser) return;
+
+    await runTransaction(db, async (transaction) => {
+      const oldApproved = quote.status === 'aprovado';
+      const newApproved = data.status === 'aprovado';
+
+      const oldMap = new Map(quote.items.map((item) => [item.itemId, item.quantity]));
+      const newMap = new Map(data.items.map((item) => [item.itemId, item.quantity]));
+      const allIds = new Set<string>([...oldMap.keys(), ...newMap.keys()]);
+
+      for (const itemId of allIds) {
+        const oldQty = oldApproved ? (oldMap.get(itemId) || 0) : 0;
+        const newQty = newApproved ? (newMap.get(itemId) || 0) : 0;
+        const deltaQty = newQty - oldQty;
+
+        if (deltaQty === 0) continue;
+
+        const itemRef = doc(db, "items", itemId);
+        const itemSnap = await transaction.get(itemRef);
+        if (!itemSnap.exists()) continue;
+
+        const current = itemSnap.data() as Item;
+        const currentQty = Number.isFinite(current.quantity) ? current.quantity : 1;
+        const nextQty = Math.max(currentQty - deltaQty, 0);
+        const soldCount = Math.max((current.soldCount || 0) + deltaQty, 0);
+
+        transaction.update(itemRef, {
+          quantity: nextQty,
+          isSold: nextQty === 0,
+          isEnabled: nextQty > 0 ? current.isEnabled : false,
+          soldCount
+        });
+      }
+
+      const quoteRef = doc(db, "quotes", quote.id);
+      const updatePayload: Record<string, any> = {
+        clientName: data.clientName,
+        clientPhone: data.clientPhone,
+        items: data.items,
+        total: data.total,
+        status: data.status
+      };
+
+      if (!oldApproved && newApproved) {
+        updatePayload.approvedAt = Date.now();
+        updatePayload.approvedBy = currentUser.email;
+      } else if (oldApproved && !newApproved) {
+        updatePayload.approvedAt = deleteField();
+        updatePayload.approvedBy = deleteField();
+      }
+
+      transaction.update(quoteRef, updatePayload);
+    });
+  };
+
+  const handleToggleAllVisibility = async (enabled: boolean) => {
+    if (!currentUser) return;
+    await Promise.all(items.map((item) => updateDoc(doc(db, "items", item.id), { isEnabled: enabled })));
+  };
+
+  const handleDeleteQuote = async (quoteId: string) => {
+    if (!currentUser) return;
+    await deleteDoc(doc(db, "quotes", quoteId));
+  };
+
   const handleSellItem = async (item: Item, amount: number) => {
     if (!currentUser) return;
     if (!Number.isFinite(amount) || amount <= 0) return;
@@ -169,7 +235,7 @@ const App: React.FC = () => {
   const filteredItems = useMemo(() => items.filter(i => {
     const matchesSearch = i.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCat = categoryFilter === 'Todas' || i.category === categoryFilter;
-    const matchesVisibility = currentUser ? true : !i.isSold && i.isEnabled === true;
+    const matchesVisibility = !i.isSold && i.isEnabled === true;
     return matchesSearch && matchesCat && matchesVisibility;
   }), [items, searchTerm, categoryFilter, currentUser]);
 
@@ -215,7 +281,10 @@ const App: React.FC = () => {
           onToggleVisibility={(id, enabled) => updateDoc(doc(db, "items", id), { isEnabled: enabled })}
           quotes={quotes}
           onCreateQuote={handleCreateQuote}
+          onUpdateQuote={handleUpdateQuote}
+          onDeleteQuote={handleDeleteQuote}
           onUpdateQuoteStatus={handleUpdateQuoteStatus}
+          onToggleAllVisibility={handleToggleAllVisibility}
           onEditItem={setEditingItem} onDelete={id => confirm('Deseja realmente excluir este item?') && deleteDoc(doc(db, "items", id))}
           onUpdatePrice={(id, p) => updateDoc(doc(db, "items", id), { price: p })}
         />

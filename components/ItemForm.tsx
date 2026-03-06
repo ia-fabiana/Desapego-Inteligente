@@ -12,9 +12,7 @@ interface ItemFormProps {
 }
 
 export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, itemToEdit }) => {
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [existingUrls, setExistingUrls] = useState<string[]>([]);
+  const [photoSlots, setPhotoSlots] = useState<Array<{ url: string; file?: File; isExisting: boolean }>>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -28,7 +26,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
 
   useEffect(() => {
     if (itemToEdit) {
-      setExistingUrls(itemToEdit.imageUrls || []);
+      const initialSlots = (itemToEdit.imageUrls || []).map((url) => ({ url, isExisting: true }));
+      setPhotoSlots(initialSlots);
       setTitle(itemToEdit.title);
       setDescription(itemToEdit.description);
       setPrice(itemToEdit.price.toString());
@@ -72,7 +71,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
     if (selectedFiles.length === 0) return;
 
     // Limite total de 3 fotos (existentes + novas)
-    const availableSlots = 3 - existingUrls.length - files.length;
+    const availableSlots = 3 - photoSlots.length;
     const filesToAdd = selectedFiles.slice(0, availableSlots);
     
     if (filesToAdd.length === 0 && selectedFiles.length > 0) {
@@ -80,11 +79,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
         return;
     }
 
-    const updatedFiles = [...files, ...filesToAdd];
-    setFiles(updatedFiles);
-    
-    const newPreviews = updatedFiles.map(f => URL.createObjectURL(f));
-    setPreviews(newPreviews);
+    const newSlots = filesToAdd.map((file) => ({
+      url: URL.createObjectURL(file),
+      file,
+      isExisting: false
+    }));
+    setPhotoSlots((prev) => [...prev, ...newSlots]);
 
     // IA: Analisa a primeira foto nova se os campos estiverem vazios
     if (!itemToEdit && title === '' && filesToAdd.length > 0) {
@@ -132,7 +132,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (files.length === 0 && existingUrls.length === 0) {
+    if (photoSlots.length === 0) {
         alert("Adicione pelo menos uma foto.");
         return;
     }
@@ -141,9 +141,17 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
     setTotalProgress(0);
 
     try {
-      // Sobe as fotos novas para o Storage
-      const newUrls = await Promise.all(files.map((file, i) => uploadToStorage(file, i, files.length)));
-      const finalUrls = [...existingUrls, ...newUrls];
+      const newFilesCount = photoSlots.filter((slot) => !slot.isExisting).length;
+      let uploadIndex = 0;
+      const finalUrls = newFilesCount === 0
+        ? photoSlots.map((slot) => slot.url)
+        : await Promise.all(
+            photoSlots.map((slot) => {
+              if (slot.isExisting) return Promise.resolve(slot.url);
+              const currentIndex = uploadIndex++;
+              return uploadToStorage(slot.file as File, currentIndex, newFilesCount);
+            })
+          );
 
       const payload = {
         title,
@@ -168,13 +176,22 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
     }
   };
 
-  const removeNewFile = (idx: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== idx));
-    setPreviews(prev => prev.filter((_, i) => i !== idx));
+  const removePhotoSlot = (idx: number) => {
+    setPhotoSlots((prev) => {
+      const slot = prev[idx];
+      if (slot && slot.file) URL.revokeObjectURL(slot.url);
+      return prev.filter((_, i) => i !== idx);
+    });
   };
 
-  const removeExistingUrl = (idx: number) => {
-    setExistingUrls(prev => prev.filter((_, i) => i !== idx));
+  const movePhotoSlot = (from: number, to: number) => {
+    setPhotoSlots((prev) => {
+      if (to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   };
 
   return (
@@ -201,29 +218,38 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
             </div>
             
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {/* Fotos já existentes (na edição) */}
-              {existingUrls.map((url, idx) => (
-                <div key={`exist-${idx}`} className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-gray-100">
-                  <img src={url} className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeExistingUrl(idx)} className="absolute top-1 right-1 bg-red-600 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ))}
-              
-              {/* Previews de novas fotos */}
-              {previews.map((url, idx) => (
-                <div key={`new-${idx}`} className="relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border border-blue-200">
-                  <img src={url} className="w-full h-full object-cover" />
-                  <div className="absolute top-1 left-1 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">Novo</div>
-                  <button type="button" onClick={() => removeNewFile(idx)} className="absolute top-1 right-1 bg-gray-900 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
+              {photoSlots.map((slot, idx) => (
+                <div key={`${slot.isExisting ? 'exist' : 'new'}-${idx}`} className={`relative w-28 h-28 shrink-0 rounded-2xl overflow-hidden border ${slot.isExisting ? 'border-gray-100' : 'border-blue-200'}`}>
+                  <img src={slot.url} className="w-full h-full object-cover" />
+                  {!slot.isExisting && (
+                    <div className="absolute top-1 left-1 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase">Novo</div>
+                  )}
+                  <div className="absolute bottom-1 left-1 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => movePhotoSlot(idx, idx - 1)}
+                      className="bg-white/90 text-gray-800 p-1 rounded-full shadow hover:scale-110 transition-transform"
+                      title="Mover para esquerda"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => movePhotoSlot(idx, idx + 1)}
+                      className="bg-white/90 text-gray-800 p-1 rounded-full shadow hover:scale-110 transition-transform"
+                      title="Mover para direita"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => removePhotoSlot(idx)} className="absolute top-1 right-1 bg-gray-900 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               ))}
 
               {/* Botão de Adicionar */}
-              {(existingUrls.length + files.length) < 3 && (
+              {photoSlots.length < 3 && (
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="w-28 h-28 shrink-0 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all">
                   <span className="text-2xl font-light">+</span>
                   <span className="text-[9px] font-black uppercase tracking-tighter">Adicionar</span>
@@ -247,7 +273,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
                 </div>
                 <div className="space-y-2">
                     <label className="text-[9px] font-black uppercase text-gray-400">Quantidade</label>
-                    <input type="number" min="1" placeholder="1" value={quantity} onChange={e => setQuantity(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
+                  <input type="number" min="0" step="1" inputMode="numeric" placeholder="1" value={quantity} onChange={e => setQuantity(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
                 </div>
             </div>
 

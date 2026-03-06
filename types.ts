@@ -6,6 +6,7 @@ export interface Item {
   price: number;
   imageUrls: string[]; // Agora é um array para o carrossel
   isSold: boolean;
+  isEnabled?: boolean;
   createdAt: number;
   category: string;
   location?: string;

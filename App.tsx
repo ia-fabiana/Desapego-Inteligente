@@ -83,6 +83,7 @@ const App: React.FC = () => {
       ...data,
       createdAt: Date.now(),
       isSold: false,
+      isEnabled: false,
       soldCount: 0,
       createdBy: currentUser.username
     });
@@ -96,10 +97,24 @@ const App: React.FC = () => {
     setEditingItem(null);
   };
 
+  const handleSellItem = async (item: Item, amount: number) => {
+    if (!currentUser) return;
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const currentQty = Number.isFinite(item.quantity) ? item.quantity : 1;
+    const safeAmount = Math.min(amount, currentQty);
+    const nextQty = Math.max(currentQty - safeAmount, 0);
+    const soldCount = (item.soldCount || 0) + safeAmount;
+    await updateDoc(doc(db, "items", item.id), {
+      quantity: nextQty,
+      isSold: nextQty === 0,
+      soldCount
+    });
+  };
+
   const filteredItems = useMemo(() => items.filter(i => {
     const matchesSearch = i.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCat = categoryFilter === 'Todas' || i.category === categoryFilter;
-    const matchesVisibility = currentUser ? true : !i.isSold;
+    const matchesVisibility = currentUser ? true : !i.isSold && i.isEnabled === true;
     return matchesSearch && matchesCat && matchesVisibility;
   }), [items, searchTerm, categoryFilter, currentUser]);
 
@@ -141,7 +156,8 @@ const App: React.FC = () => {
       {currentUser && showAdmin && (
         <AdminDashboard 
           items={items} onClose={() => setShowAdmin(false)} onAddNew={() => setShowForm(true)}
-          onToggleStatus={(id, status) => updateDoc(doc(db, "items", id), { isSold: status })}
+          onToggleStatus={(id, status) => updateDoc(doc(db, "items", id), { isSold: status, quantity: status ? 0 : 1 })}
+          onToggleVisibility={(id, enabled) => updateDoc(doc(db, "items", id), { isEnabled: enabled })}
           onEditItem={setEditingItem} onDelete={id => confirm('Deseja realmente excluir este item?') && deleteDoc(doc(db, "items", id))}
           onUpdatePrice={(id, p) => updateDoc(doc(db, "items", id), { price: p })}
         />
@@ -231,7 +247,7 @@ const App: React.FC = () => {
                 key={item.id} 
                 item={item} 
                 isAdmin={!!currentUser} 
-                onSell={() => updateDoc(doc(db, "items", item.id), { isSold: true })} 
+                onSell={handleSellItem} 
                 onUpdatePrice={(id, p) => updateDoc(doc(db, "items", id), { price: p })} 
                 onDelete={id => confirm('Tem certeza que deseja excluir?') && deleteDoc(doc(db, "items", id))} 
                 onEdit={setEditingItem} 

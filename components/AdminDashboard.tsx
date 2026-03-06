@@ -7,13 +7,14 @@ interface AdminDashboardProps {
   onClose: () => void;
   onAddNew: () => void;
   onToggleStatus: (id: string, isSold: boolean) => void;
+    onToggleVisibility: (id: string, isEnabled: boolean) => void;
   onEditItem?: (item: Item) => void;
   onDelete?: (id: string) => void;
   onUpdatePrice: (id: string, price: number) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  items, onClose, onAddNew, onToggleStatus, onEditItem, onDelete, onUpdatePrice 
+    items, onClose, onAddNew, onToggleStatus, onToggleVisibility, onEditItem, onDelete, onUpdatePrice 
 }) => {
   const stats = useMemo(() => {
     let revenue = 0;
@@ -98,6 +99,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <th className="px-8 py-4 text-center">Preço</th>
                             <th className="px-8 py-4 text-center">Qtd</th>
                             <th className="px-8 py-4 text-center">Status</th>
+                            <th className="px-8 py-4 text-center">Visível</th>
                             <th className="px-8 py-4 text-right">Ações</th>
                         </tr>
                     </thead>
@@ -143,6 +145,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             }`}
                                         >
                                             {item.isSold ? 'Vendido' : 'Disponível'}
+                                        </button>
+                                    </td>
+                                    <td className="px-8 py-5 text-center">
+                                        <button 
+                                            onClick={() => onToggleVisibility(item.id, !(item.isEnabled === true))}
+                                            className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${
+                                                item.isEnabled === true
+                                                ? 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'
+                                                : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            {item.isEnabled === true ? 'Habilitado' : 'Desabilitado'}
                                         </button>
                                     </td>
                                     <td className="px-8 py-5 text-right">

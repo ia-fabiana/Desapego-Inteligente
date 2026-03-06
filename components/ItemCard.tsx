@@ -5,7 +5,7 @@ import { Item } from '../types';
 interface ItemCardProps {
   item: Item;
   isAdmin: boolean;
-  onSell: (amount: number) => void;
+  onSell: (item: Item, amount: number) => void;
   onUpdatePrice: (id: string, newPrice: number) => void;
   onDelete: (id: string) => void;
   onEdit: (item: Item) => void;
@@ -17,6 +17,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
   const urls = item.imageUrls && item.imageUrls.length > 0 
     ? item.imageUrls 
     : ['https://via.placeholder.com/600x600?text=Sem+Foto'];
+  const availableQty = item.quantity ?? 1;
+
+  const handleSellClick = () => {
+    const raw = window.prompt(`Quantidade vendida (disponivel: ${availableQty}):`, '1');
+    if (raw === null) return;
+    const amount = parseInt(raw, 10);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Informe uma quantidade valida.');
+      return;
+    }
+    if (amount > availableQty) {
+      alert('Quantidade maior que o estoque disponivel.');
+      return;
+    }
+    onSell(item, amount);
+  };
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -128,11 +144,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
              <span className="text-xs font-bold mr-1">R$</span>
              {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
            </div>
-           {item.quantity > 1 && (
-             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
-               {item.quantity} disponíveis
-             </span>
-           )}
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+            {availableQty} disponíveis
+          </span>
         </div>
 
         {!item.isSold ? (
@@ -145,7 +159,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
             </button>
             {isAdmin && (
               <button 
-                onClick={() => onSell(1)} 
+                onClick={handleSellClick} 
                 className="w-16 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 font-black text-[10px] hover:bg-blue-600 hover:text-white transition-all shadow-sm"
                 title="Marcar como Vendido"
               >

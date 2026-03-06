@@ -32,6 +32,7 @@ export interface QuoteItem {
 
 export interface Quote {
   id: string;
+  number: number;
   clientName: string;
   clientPhone: string;
   items: QuoteItem[];

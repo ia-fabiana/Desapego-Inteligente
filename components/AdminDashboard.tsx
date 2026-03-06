@@ -19,6 +19,7 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
     items, quotes, onClose, onAddNew, onToggleStatus, onToggleVisibility, onCreateQuote, onUpdateQuoteStatus, onEditItem, onDelete, onUpdatePrice 
 }) => {
+    const [activeTab, setActiveTab] = useState<'items' | 'quotes'>('items');
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [quoteLines, setQuoteLines] = useState<Array<{ itemId: string; quantity: number }>>([{ itemId: '', quantity: 1 }]);
@@ -62,6 +63,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             })
             .filter((line): line is QuoteItem => !!line);
     }, [quoteLines, items]);
+
+    const itemThumbs = useMemo(() => {
+        return items.reduce<Record<string, string>>((acc, item) => {
+            acc[item.id] = item.imageUrls?.[0] || 'https://via.placeholder.com/80';
+            return acc;
+        }, {});
+    }, [items]);
 
     const quoteTotal = useMemo(() => {
         return quoteItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -152,7 +160,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         </div>
 
-        {/* Lista de Itens */}
+        <div className="flex flex-wrap gap-3">
+            <button
+                onClick={() => setActiveTab('items')}
+                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                    activeTab === 'items'
+                    ? 'bg-gray-900 text-white border-gray-900 shadow-xl shadow-gray-100'
+                    : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
+                }`}
+            >
+                Itens
+            </button>
+            <button
+                onClick={() => setActiveTab('quotes')}
+                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${
+                    activeTab === 'quotes'
+                    ? 'bg-gray-900 text-white border-gray-900 shadow-xl shadow-gray-100'
+                    : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
+                }`}
+            >
+                Orcamentos
+            </button>
+        </div>
+
+        {activeTab === 'items' && (
         <div className="bg-white border rounded-[2.5rem] shadow-sm overflow-hidden mb-12">
             <div className="px-8 py-6 border-b bg-gray-50/30 flex justify-between items-center">
                 <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Lista de Produtos</h4>
@@ -255,9 +286,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </table>
             </div>
         </div>
+        )}
 
-                {/* Orcamentos */}
-                <div className="bg-white border rounded-[2.5rem] shadow-sm overflow-hidden">
+        {activeTab === 'quotes' && (
+        <div className="bg-white border rounded-[2.5rem] shadow-sm overflow-hidden">
                     <div className="px-8 py-6 border-b bg-gray-50/30 flex justify-between items-center">
                         <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Orcamentos</h4>
                         <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{filteredQuotes.length} ativos</div>
@@ -290,6 +322,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-green-600 text-sm">
                                     R$ {quoteTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Buscar Cliente</label>
+                                <input
+                                    type="text"
+                                    value={quoteSearch}
+                                    onChange={(e) => setQuoteSearch(e.target.value)}
+                                    placeholder="Nome ou telefone"
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Status</label>
+                                <select
+                                    value={quoteStatus}
+                                    onChange={(e) => setQuoteStatus(e.target.value as 'todos' | 'orcamento' | 'aprovado')}
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                >
+                                    <option value="todos">Todos</option>
+                                    <option value="orcamento">Orcamento</option>
+                                    <option value="aprovado">Aprovado</option>
+                                </select>
                             </div>
                         </div>
 
@@ -344,31 +401,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black uppercase text-gray-400">Buscar Cliente</label>
-                                <input
-                                    type="text"
-                                    value={quoteSearch}
-                                    onChange={(e) => setQuoteSearch(e.target.value)}
-                                    placeholder="Nome ou telefone"
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black uppercase text-gray-400">Status</label>
-                                <select
-                                    value={quoteStatus}
-                                    onChange={(e) => setQuoteStatus(e.target.value as 'todos' | 'orcamento' | 'aprovado')}
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
-                                >
-                                    <option value="todos">Todos</option>
-                                    <option value="orcamento">Orcamento</option>
-                                    <option value="aprovado">Aprovado</option>
-                                </select>
-                            </div>
-                        </div>
-
                         <div className="space-y-4">
                             {filteredQuotes.length === 0 ? (
                                 <div className="text-center py-10 text-gray-300 font-bold italic">Nenhum orcamento encontrado.</div>
@@ -376,8 +408,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 filteredQuotes.map((quote) => (
                                     <div key={quote.id} className="border border-gray-100 rounded-2xl p-6 flex flex-col gap-4">
                                         <div className="flex flex-wrap justify-between gap-4">
-                                            <div>
-                                                <p className="font-black text-gray-900 text-sm uppercase tracking-tight">{quote.clientName}</p>
+                                                <div>
+                                                <p className="font-black text-gray-900 text-sm uppercase tracking-tight">
+                                                    Orcamento #{quote.number ?? '---'}
+                                                </p>
+                                                <p className="text-[11px] font-bold text-gray-600 uppercase tracking-widest">{quote.clientName}</p>
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{quote.clientPhone}</p>
                                                 {quote.createdBy && (
                                                     <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Criado por: {quote.createdBy}</p>
@@ -394,8 +429,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {quote.items.map((item) => (
-                                                <div key={`${quote.id}-${item.itemId}`} className="bg-gray-50 rounded-xl p-3 flex justify-between text-[11px] font-bold text-gray-500">
-                                                    <span>{item.title}</span>
+                                                <div key={`${quote.id}-${item.itemId}`} className="bg-gray-50 rounded-xl p-3 flex items-center justify-between gap-3 text-[11px] font-bold text-gray-500">
+                                                    <div className="flex items-center gap-3">
+                                                        <img
+                                                            src={itemThumbs[item.itemId] || 'https://via.placeholder.com/80'}
+                                                            className="w-10 h-10 rounded-xl object-cover border"
+                                                        />
+                                                        <span>{item.title}</span>
+                                                    </div>
                                                     <span>{item.quantity}x</span>
                                                 </div>
                                             ))}
@@ -418,6 +459,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                     </div>
                 </div>
+        )}
       </div>
     </div>
   );

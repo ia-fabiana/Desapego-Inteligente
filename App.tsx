@@ -7,7 +7,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 
 // FIREBASE SDK (ESM)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -105,11 +105,21 @@ const App: React.FC = () => {
 
   const handleCreateQuote = async (data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; }) => {
     if (!currentUser) return;
-    await addDoc(collection(db, "quotes"), {
-      ...data,
-      status: 'orcamento',
-      createdAt: Date.now(),
-      createdBy: currentUser.email
+    await runTransaction(db, async (transaction) => {
+      const counterRef = doc(db, "counters", "quotes");
+      const counterSnap = await transaction.get(counterRef);
+      const lastNumber = counterSnap.exists() ? Number(counterSnap.data().value) : 199;
+      const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 200;
+
+      const quoteRef = doc(collection(db, "quotes"));
+      transaction.set(counterRef, { value: nextNumber }, { merge: true });
+      transaction.set(quoteRef, {
+        ...data,
+        number: nextNumber,
+        status: 'orcamento',
+        createdAt: Date.now(),
+        createdBy: currentUser.email
+      });
     });
   };
 

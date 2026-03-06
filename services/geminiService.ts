@@ -2,8 +2,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAnalysisResult, Item } from "../types";
 
-// Inicialização obrigatória usando process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = (import.meta as any).env?.VITE_API_KEY || '';
+
+if (!apiKey) {
+  console.error('VITE_API_KEY ausente. Configure a variavel de ambiente para usar a IA.');
+}
+
+// Inicializacao usando chave exposta no build do frontend
+const ai = new GoogleGenAI({ apiKey });
 
 export const analyzeItemImage = async (base64Image: string): Promise<AIAnalysisResult> => {
   // Use gemini-3-flash-preview for multimodal analysis tasks

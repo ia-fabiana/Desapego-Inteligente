@@ -23,6 +23,26 @@ export interface Item {
   soldBy?: string;
 }
 
+export interface QuoteItem {
+  itemId: string;
+  title: string;
+  price: number;
+  quantity: number;
+}
+
+export interface Quote {
+  id: string;
+  clientName: string;
+  clientPhone: string;
+  items: QuoteItem[];
+  total: number;
+  status: 'orcamento' | 'aprovado';
+  createdAt: number;
+  createdBy?: string;
+  approvedAt?: number;
+  approvedBy?: string;
+}
+
 export interface UserSession {
   username: string;
   email: string;

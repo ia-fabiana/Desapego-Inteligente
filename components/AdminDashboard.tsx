@@ -1,21 +1,30 @@
 
-import React, { useMemo } from 'react';
-import { Item } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Item, Quote, QuoteItem } from '../types';
 
 interface AdminDashboardProps {
   items: Item[];
+    quotes: Quote[];
   onClose: () => void;
   onAddNew: () => void;
   onToggleStatus: (id: string, isSold: boolean) => void;
     onToggleVisibility: (id: string, isEnabled: boolean) => void;
+    onCreateQuote: (data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; }) => void;
+    onUpdateQuoteStatus: (quote: Quote, status: 'orcamento' | 'aprovado') => void;
   onEditItem?: (item: Item) => void;
   onDelete?: (id: string) => void;
   onUpdatePrice: (id: string, price: number) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-    items, onClose, onAddNew, onToggleStatus, onToggleVisibility, onEditItem, onDelete, onUpdatePrice 
+    items, quotes, onClose, onAddNew, onToggleStatus, onToggleVisibility, onCreateQuote, onUpdateQuoteStatus, onEditItem, onDelete, onUpdatePrice 
 }) => {
+    const [clientName, setClientName] = useState('');
+    const [clientPhone, setClientPhone] = useState('');
+    const [quoteLines, setQuoteLines] = useState<Array<{ itemId: string; quantity: number }>>([{ itemId: '', quantity: 1 }]);
+    const [quoteSearch, setQuoteSearch] = useState('');
+    const [quoteStatus, setQuoteStatus] = useState<'todos' | 'orcamento' | 'aprovado'>('todos');
+
   const stats = useMemo(() => {
     let revenue = 0;
     let availableCount = 0;
@@ -39,6 +48,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
   }, [items]);
 
+    const quoteItems = useMemo(() => {
+        return quoteLines
+            .map((line) => {
+                const item = items.find((i) => i.id === line.itemId);
+                if (!item) return null;
+                return {
+                    itemId: item.id,
+                    title: item.title,
+                    price: item.price,
+                    quantity: Math.max(1, Number(line.quantity) || 1)
+                } as QuoteItem;
+            })
+            .filter((line): line is QuoteItem => !!line);
+    }, [quoteLines, items]);
+
+    const quoteTotal = useMemo(() => {
+        return quoteItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    }, [quoteItems]);
+
+    const filteredQuotes = useMemo(() => {
+        return quotes.filter((quote) => {
+            const matchesStatus = quoteStatus === 'todos' ? true : quote.status === quoteStatus;
+            const search = quoteSearch.trim().toLowerCase();
+            const matchesSearch = search.length === 0
+                ? true
+                : quote.clientName.toLowerCase().includes(search) || quote.clientPhone.toLowerCase().includes(search);
+            return matchesStatus && matchesSearch;
+        });
+    }, [quotes, quoteStatus, quoteSearch]);
+
+    const updateQuoteLine = (index: number, next: Partial<{ itemId: string; quantity: number }>) => {
+        setQuoteLines((prev) => prev.map((line, idx) => idx === index ? { ...line, ...next } : line));
+    };
+
+    const addQuoteLine = () => {
+        setQuoteLines((prev) => [...prev, { itemId: '', quantity: 1 }]);
+    };
+
+    const removeQuoteLine = (index: number) => {
+        setQuoteLines((prev) => prev.filter((_, idx) => idx !== index));
+    };
+
+    const handleCreateQuote = () => {
+        if (!clientName.trim() || !clientPhone.trim()) {
+            alert('Informe nome e telefone do cliente.');
+            return;
+        }
+        if (quoteItems.length === 0) {
+            alert('Adicione pelo menos um item no orcamento.');
+            return;
+        }
+        onCreateQuote({
+            clientName: clientName.trim(),
+            clientPhone: clientPhone.trim(),
+            items: quoteItems,
+            total: quoteTotal
+        });
+        setClientName('');
+        setClientPhone('');
+        setQuoteLines([{ itemId: '', quantity: 1 }]);
+    };
+
   return (
     <div className="fixed inset-0 bg-[#fcfdfe] z-[70] flex flex-col animate-fade-in no-print-bg">
       {/* Header Fixo */}
@@ -60,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full space-y-8">
+    <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full space-y-10">
         {/* Cartões de Métricas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm flex flex-col justify-between">
@@ -184,6 +255,169 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </table>
             </div>
         </div>
+
+                {/* Orcamentos */}
+                <div className="bg-white border rounded-[2.5rem] shadow-sm overflow-hidden">
+                    <div className="px-8 py-6 border-b bg-gray-50/30 flex justify-between items-center">
+                        <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Orcamentos</h4>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{filteredQuotes.length} ativos</div>
+                    </div>
+
+                    <div className="p-8 space-y-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Nome do Cliente</label>
+                                <input
+                                    type="text"
+                                    value={clientName}
+                                    onChange={(e) => setClientName(e.target.value)}
+                                    placeholder="Ex: Maria Silva"
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Telefone</label>
+                                <input
+                                    type="text"
+                                    value={clientPhone}
+                                    onChange={(e) => setClientPhone(e.target.value)}
+                                    placeholder="(11) 99999-9999"
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Total</label>
+                                <div className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-green-600 text-sm">
+                                    R$ {quoteTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {quoteLines.map((line, index) => (
+                                <div key={`quote-line-${index}`} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-4 items-center">
+                                    <select
+                                        value={line.itemId}
+                                        onChange={(e) => updateQuoteLine(index, { itemId: e.target.value })}
+                                        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                    >
+                                        <option value="">Selecione um item</option>
+                                        {items.map((item) => (
+                                            <option key={item.id} value={item.id}>
+                                                {item.title} (disp: {item.quantity ?? 1})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        step={1}
+                                        value={line.quantity}
+                                        onChange={(e) => updateQuoteLine(index, { quantity: parseInt(e.target.value, 10) || 1 })}
+                                        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeQuoteLine(index)}
+                                        className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl border border-red-100 hover:bg-red-100 transition-all"
+                                        title="Remover item"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={addQuoteLine}
+                                    className="px-6 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all"
+                                >
+                                    Adicionar Item
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleCreateQuote}
+                                    className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                >
+                                    Criar Orcamento
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Buscar Cliente</label>
+                                <input
+                                    type="text"
+                                    value={quoteSearch}
+                                    onChange={(e) => setQuoteSearch(e.target.value)}
+                                    placeholder="Nome ou telefone"
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase text-gray-400">Status</label>
+                                <select
+                                    value={quoteStatus}
+                                    onChange={(e) => setQuoteStatus(e.target.value as 'todos' | 'orcamento' | 'aprovado')}
+                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                                >
+                                    <option value="todos">Todos</option>
+                                    <option value="orcamento">Orcamento</option>
+                                    <option value="aprovado">Aprovado</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            {filteredQuotes.length === 0 ? (
+                                <div className="text-center py-10 text-gray-300 font-bold italic">Nenhum orcamento encontrado.</div>
+                            ) : (
+                                filteredQuotes.map((quote) => (
+                                    <div key={quote.id} className="border border-gray-100 rounded-2xl p-6 flex flex-col gap-4">
+                                        <div className="flex flex-wrap justify-between gap-4">
+                                            <div>
+                                                <p className="font-black text-gray-900 text-sm uppercase tracking-tight">{quote.clientName}</p>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{quote.clientPhone}</p>
+                                                {quote.createdBy && (
+                                                    <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Criado por: {quote.createdBy}</p>
+                                                )}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Total</p>
+                                                <p className="text-lg font-black text-green-600">R$ {quote.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${quote.status === 'aprovado' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
+                                                    {quote.status === 'aprovado' ? 'Aprovado' : 'Orcamento'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {quote.items.map((item) => (
+                                                <div key={`${quote.id}-${item.itemId}`} className="bg-gray-50 rounded-xl p-3 flex justify-between text-[11px] font-bold text-gray-500">
+                                                    <span>{item.title}</span>
+                                                    <span>{item.quantity}x</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {quote.status === 'orcamento' && (
+                                            <div className="flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onUpdateQuoteStatus(quote, 'aprovado')}
+                                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all"
+                                                >
+                                                    Aprovar Compra
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
       </div>
     </div>
   );

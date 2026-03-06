@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Item, UserSession } from './types';
+import { Item, Quote, QuoteItem, UserSession } from './types';
 import { ItemCard } from './components/ItemCard';
 import { ItemForm } from './components/ItemForm';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
+  const [quotes, setQuotes] = useState<Quote[]>([]);
 
   useEffect(() => {
     setPersistence(auth, browserLocalPersistence).catch(console.error);
@@ -74,7 +75,12 @@ const App: React.FC = () => {
       setItems(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Item));
     });
 
-    return () => { unsubscribeAuth(); unsubscribeStore(); };
+    const quotesQuery = query(collection(db, "quotes"), orderBy("createdAt", "desc"));
+    const unsubscribeQuotes = onSnapshot(quotesQuery, (snapshot) => {
+      setQuotes(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Quote));
+    });
+
+    return () => { unsubscribeAuth(); unsubscribeStore(); unsubscribeQuotes(); };
   }, []);
 
   const handleAddItem = async (data: any) => {
@@ -95,6 +101,45 @@ const App: React.FC = () => {
     const { id, ...rest } = data;
     await updateDoc(doc(db, "items", id), rest);
     setEditingItem(null);
+  };
+
+  const handleCreateQuote = async (data: { clientName: string; clientPhone: string; items: QuoteItem[]; total: number; }) => {
+    if (!currentUser) return;
+    await addDoc(collection(db, "quotes"), {
+      ...data,
+      status: 'orcamento',
+      createdAt: Date.now(),
+      createdBy: currentUser.email
+    });
+  };
+
+  const handleUpdateQuoteStatus = async (quote: Quote, nextStatus: 'orcamento' | 'aprovado') => {
+    if (!currentUser) return;
+    if (quote.status === nextStatus) return;
+
+    if (nextStatus === 'aprovado') {
+      await Promise.all(quote.items.map(async (quoteItem) => {
+        const current = items.find((item) => item.id === quoteItem.itemId);
+        if (!current) return;
+        const currentQty = Number.isFinite(current.quantity) ? current.quantity : 1;
+        const safeAmount = Math.min(quoteItem.quantity, currentQty);
+        const nextQty = Math.max(currentQty - safeAmount, 0);
+        const soldCount = (current.soldCount || 0) + safeAmount;
+        await updateDoc(doc(db, "items", current.id), {
+          quantity: nextQty,
+          isSold: nextQty === 0,
+          isEnabled: nextQty > 0 ? current.isEnabled : false,
+          soldCount
+        });
+      }));
+    }
+
+    const updatePayload: Record<string, any> = { status: nextStatus };
+    if (nextStatus === 'aprovado') {
+      updatePayload.approvedAt = Date.now();
+      updatePayload.approvedBy = currentUser.email;
+    }
+    await updateDoc(doc(db, "quotes", quote.id), updatePayload);
   };
 
   const handleSellItem = async (item: Item, amount: number) => {
@@ -158,6 +203,9 @@ const App: React.FC = () => {
           items={items} onClose={() => setShowAdmin(false)} onAddNew={() => setShowForm(true)}
           onToggleStatus={(id, status) => updateDoc(doc(db, "items", id), { isSold: status, quantity: status ? 0 : 1 })}
           onToggleVisibility={(id, enabled) => updateDoc(doc(db, "items", id), { isEnabled: enabled })}
+          quotes={quotes}
+          onCreateQuote={handleCreateQuote}
+          onUpdateQuoteStatus={handleUpdateQuoteStatus}
           onEditItem={setEditingItem} onDelete={id => confirm('Deseja realmente excluir este item?') && deleteDoc(doc(db, "items", id))}
           onUpdatePrice={(id, p) => updateDoc(doc(db, "items", id), { price: p })}
         />

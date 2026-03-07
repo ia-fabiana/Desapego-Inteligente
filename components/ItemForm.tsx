@@ -9,15 +9,17 @@ interface ItemFormProps {
   onUpdate?: (data: any) => void;
   onCancel: () => void;
   itemToEdit?: Item | null;
+  availableCategories?: string[];
 }
 
-export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, itemToEdit }) => {
+export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, itemToEdit, availableCategories = [] }) => {
   const [photoSlots, setPhotoSlots] = useState<Array<{ url: string; file?: File; isExisting: boolean }>>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryInput, setCategoryInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [totalProgress, setTotalProgress] = useState<number>(0);
@@ -32,7 +34,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
       setDescription(itemToEdit.description);
       setPrice(itemToEdit.price.toString());
       setQuantity(itemToEdit.quantity?.toString() || '1');
-      setCategory(itemToEdit.category);
+      const initialCategories = Array.isArray(itemToEdit.category) ? itemToEdit.category : [itemToEdit.category];
+      setCategories(initialCategories.filter(Boolean));
     }
   }, [itemToEdit]);
 
@@ -98,7 +101,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
           setTitle(result.title);
           setDescription(result.description);
           setPrice(result.suggestedPrice.toString());
-          setCategory(result.category);
+          setCategories([result.category].filter(Boolean));
         }
       } catch (err) {
         console.error("Erro na análise IA:", err);
@@ -157,10 +160,21 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
         title,
         description,
         price: parseFloat(price) || 0,
-        category,
+        category: categories,
         imageUrls: finalUrls,
         quantity: parseInt(quantity) || 1
       };
+  const addCategory = () => {
+    const value = categoryInput.trim();
+    if (!value) return;
+    if (categories.includes(value)) return;
+    setCategories((prev) => [...prev, value]);
+    setCategoryInput('');
+  };
+
+  const removeCategory = (value: string) => {
+    setCategories((prev) => prev.filter((cat) => cat !== value));
+  };
 
       if (itemToEdit) {
         await onUpdate?.({ ...itemToEdit, ...payload });
@@ -279,7 +293,48 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onUpdate, onCancel, i
 
             <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase text-gray-400">Categoria</label>
-                <input type="text" placeholder="Ex: Móveis" value={category} onChange={e => setCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all" />
+                <div className="space-y-3">
+                  <select
+                    multiple
+                    value={categories}
+                    onChange={(e) => setCategories(Array.from(e.target.selectedOptions).map((opt) => opt.value))}
+                    className="w-full p-3 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                  >
+                    {availableCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Adicionar nova categoria"
+                      value={categoryInput}
+                      onChange={(e) => setCategoryInput(e.target.value)}
+                      className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm focus:bg-white focus:border-blue-400 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCategory}
+                      className="px-4 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                  {categories.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => removeCategory(cat)}
+                          className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-all"
+                        >
+                          {cat} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
             </div>
 
             <div className="space-y-2">

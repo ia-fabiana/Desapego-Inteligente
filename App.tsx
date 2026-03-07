@@ -232,14 +232,21 @@ const App: React.FC = () => {
     });
   };
 
+  const getItemCategories = (value: Item['category']) => {
+    return Array.isArray(value) ? value : [value];
+  };
+
   const filteredItems = useMemo(() => items.filter(i => {
     const matchesSearch = i.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCat = categoryFilter === 'Todas' || i.category === categoryFilter;
+    const matchesCat = categoryFilter === 'Todas' || getItemCategories(i.category).includes(categoryFilter);
     const matchesVisibility = !i.isSold && i.isEnabled === true;
     return matchesSearch && matchesCat && matchesVisibility;
-  }), [items, searchTerm, categoryFilter, currentUser]);
+  }), [items, searchTerm, categoryFilter]);
 
-  const categories = useMemo(() => ['Todas', ...Array.from(new Set(items.map(i => i.category))).sort()], [items]);
+  const categories = useMemo(() => {
+    const all = items.flatMap((item) => getItemCategories(item.category));
+    return ['Todas', ...Array.from(new Set(all)).sort()];
+  }, [items]);
 
   const handleLogin = async () => {
     try {
@@ -394,8 +401,8 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {showForm && <ItemForm onAdd={handleAddItem} onCancel={() => setShowForm(false)} />}
-      {editingItem && <ItemForm itemToEdit={editingItem} onUpdate={handleUpdateItem} onCancel={() => setEditingItem(null)} />}
+      {showForm && <ItemForm onAdd={handleAddItem} onCancel={() => setShowForm(false)} availableCategories={categories.filter((cat) => cat !== 'Todas')} />}
+      {editingItem && <ItemForm itemToEdit={editingItem} onUpdate={handleUpdateItem} onCancel={() => setEditingItem(null)} availableCategories={categories.filter((cat) => cat !== 'Todas')} />}
 
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-6 backdrop-blur-md animate-fade-in">

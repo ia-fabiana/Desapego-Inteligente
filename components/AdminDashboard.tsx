@@ -36,7 +36,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const [editStatus, setEditStatus] = useState<'orcamento' | 'aprovado'>('orcamento');
         const [editLines, setEditLines] = useState<Array<{ itemId: string; quantity: number }>>([]);
 
-  const stats = useMemo(() => {
+    const stats = useMemo(() => {
     let revenue = 0;
     let availableCount = 0;
     let soldCountTotal = 0;
@@ -58,6 +58,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       totalItems: items.reduce((acc, item) => acc + (item.quantity || 1), 0)
     };
   }, [items]);
+
+    const getCategoryLabel = (value: Item['category']) => {
+        return Array.isArray(value) ? value.join(' / ') : value;
+    };
 
     const filteredAdminItems = useMemo(() => {
         if (itemVisibilityFilter === 'todos') return items;
@@ -352,7 +356,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </div>
                                             <div>
                                                 <p className="font-black text-gray-900 text-sm uppercase tracking-tight">{item.title}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.category}</p>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getCategoryLabel(item.category)}</p>
                                             </div>
                                         </div>
                                     </td>

@@ -8,7 +8,7 @@ export interface Item {
   isSold: boolean;
   isEnabled?: boolean;
   createdAt: number;
-  category: string;
+  category: string | string[];
   location?: string;
   quantity: number;
   soldCount: number;

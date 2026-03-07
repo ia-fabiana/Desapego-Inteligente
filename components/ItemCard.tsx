@@ -18,6 +18,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
     ? item.imageUrls 
     : ['https://via.placeholder.com/600x600?text=Sem+Foto'];
   const availableQty = item.quantity ?? 1;
+  const categoryLabel = Array.isArray(item.category) ? item.category.join(' / ') : item.category;
 
   const handleSellClick = () => {
     const raw = window.prompt(`Quantidade vendida (disponivel: ${availableQty}):`, '1');
@@ -100,7 +101,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, isAdmin, onSell, onDel
         {/* Categoria Badge */}
         <div className="absolute top-6 left-6 z-20">
             <span className="bg-gray-900/80 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white shadow-lg border border-white/10">
-                {item.category}
+              {categoryLabel}
             </span>
         </div>
 
